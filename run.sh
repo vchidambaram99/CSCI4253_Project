@@ -18,7 +18,3 @@ cd ..
 cd worker
 ./worker-launch.sh
 cd ..
-
-cd logger
-./logger-launch.sh
-cd ..
