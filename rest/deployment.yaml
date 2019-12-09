@@ -19,3 +19,16 @@ spec:
         image: gcr.io/erudite-variety-251120/rest:1.0
         ports:
         - containerPort: 5000
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rest-scaler
+spec:
+  minReplicas: 1
+  maxReplicas: 3
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: rest-deployment
+  targetCPUUtilizationPercentage: 80

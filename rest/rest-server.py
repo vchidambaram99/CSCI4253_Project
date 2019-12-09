@@ -27,8 +27,8 @@ while(True):
 		break
 	except: time.sleep(1)
 channel = connection.channel()
-channel.exchange_declare(exchange="worker", exchange_type="direct")
-channel.queue_declare("work_queue")
+channel.exchange_declare(exchange="worker", exchange_type="direct", durable=True)
+channel.queue_declare("work_queue", durable=True)
 channel.queue_bind(exchange="worker", queue="work_queue", routing_key="audio")
 
 rdb = [redis.Redis(host="redis.default.svc.cluster.local", port='6379', db=i) for i in range(0,2)] # TODO
@@ -59,7 +59,7 @@ def upload(filename):
 		return Response(response=json.dumps({"error": "This filename already exists"}), status=400, mimetype="application/json")
 	blob = bucket.blob(filename)
 	blob.upload_from_string(data)
-	channel.basic_publish(exchange="worker", routing_key="audio", body=pickle.dumps(("transcribe",filename,request.data)))
+	channel.basic_publish(exchange="worker", routing_key="audio", body=pickle.dumps(("transcribe",filename)), properties=pika.BasicProperties(delivery_mode=2))
 	return Response(response=json.dumps({"success": filename}), status=200, mimetype="application/json")
 
 @app.route("/download/<path:filename>", methods=["GET"])
@@ -81,25 +81,26 @@ def download(filename):
 	writer.setnchannels(wav.getnchannels())
 	writer.setsampwidth(wav.getsampwidth())
 	writer.setframerate(framerate)
-	frames = wav.readframes(wav.getnframes())
+	frames = wav.readframes(int(start*framerate))
 	if(end!=-1):
-		writer.writeframes(frames[int(start*framerate):int(end*framerate)])
+		writer.writeframes(wav.readframes(wav.getnframes()))
 	else:
-		writer.writeframes(frames[int(start*framerate):])
+		writer.writeframes(wav.readframes(int((end-start)*framerate)))
 	return Response(response=outfile.getvalue(), status=200)
 
 @app.route("/transcript/<path:filename>", methods=["GET"])
 def transcript(filename):
+	timeout = json.loads(request.data)["timeout"]
+	forever = timeout<0
 	if(bucket.get_blob(filename) != None):
 		blob = None
-		timeout = 0
-		while(timeout<60):
+		while(timeout>0 or forever):
 			blob = bucket.get_blob(filename+".txt")
 			if(blob==None):
 				time.sleep(0.1)
-				timeout += 0.1
+				timeout -= 0.1
 			else: break
-		if(timeout==60): return Response(response=json.dumps({"error": "Waiting for transcription timed out, please try again later."}), status=400, mimetype="application/json")
+		if(timeout<=0 and not forever): return Response(response=json.dumps({"error": "Waiting for transcription timed out, please try again later."}), status=400, mimetype="application/json")
 		else: return Response(response=json.dumps({"transcript": blob.download_as_string().decode("utf-8")}), status=200, mimetype="application/json")
 	return Response(response=json.dumps({"error": "This filename doesn't exist"}), status=400, mimetype="application/json")
 
@@ -155,7 +156,7 @@ def search(filepath):
 	num = 0
 	for blob in storage_client.list_blobs(bucket, prefix=filepath):
 		if(blob.name.endswith(".txt")): #TODO additional checks (to emulate paths instead of prefixes)
-			channel.basic_publish(exchange="worker", routing_key="audio", body=pickle.dumps(("search",blob.name,request_id,num,req_json)))
+			channel.basic_publish(exchange="worker", routing_key="audio", body=pickle.dumps(("search",blob.name,request_id,num,req_json)), properties=pika.BasicProperties(delivery_mode=2))
 			num += 1
 	rdb[1].set(str(request_id), num, ex=86400)
 	ret_dict["results"] = process_search(request_id, num, req_json["timeout"], req_json["topn"])

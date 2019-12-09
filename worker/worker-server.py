@@ -43,8 +43,8 @@ logger.log_text("Loaded DeepSpeech Model:"+str(time.time()-a), severity="DEBUG")
 connection = pika.BlockingConnection(pika.ConnectionParameters(
 	host="rabbitmq.default.svc.cluster.local"))
 channel = connection.channel()
-channel.exchange_declare(exchange="worker", exchange_type="direct")
-channel.queue_declare("work_queue")
+channel.exchange_declare(exchange="worker", exchange_type="direct", durable=True)
+channel.queue_declare("work_queue", durable=True)
 channel.queue_bind(exchange="worker", queue="work_queue", routing_key="audio")
 
 rdb = [redis.Redis(host="redis.default.svc.cluster.local", port='6379', db=i) for i in range(0,2)]
@@ -157,7 +157,7 @@ def msg_callback(ch, method, properties, body):
 		logger.log_text("Worker recieved request to " + req[0], severity="DEBUG")
 		if(req[0]=="transcribe"):
 			filename = req[1]+".txt"
-			meta = get_meta(req[2])
+			meta = get_meta(bucket.get_blob(req[1]).download_as_string())
 			transcript = word_stamp(meta)
 			logger.log_text(transcript, severity="INFO")
 			blob = bucket.get_blob(filename)

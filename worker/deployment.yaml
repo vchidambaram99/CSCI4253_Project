@@ -19,3 +19,16 @@ spec:
         image: gcr.io/erudite-variety-251120/worker:1.0
         ports:
         - containerPort: 80
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: worker-scaler
+spec:
+  minReplicas: 2
+  maxReplicas: 8
+  scaleTargetRef:
+    apiVersion: extensions/v1
+    kind: Deployment
+    name: worker-deployment
+  targetCPUUtilizationPercentage: 70

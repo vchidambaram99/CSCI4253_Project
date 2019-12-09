@@ -1,11 +1,24 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: PersistentVolumeClaim
 metadata:
-  name: rabbitmq-deployment
+  name: rabbitmq-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 8Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq-set
   labels:
     app: rabbitmq
 spec:
   replicas: 1
+  serviceName: rabbitmq
   selector:
     matchLabels:
       app: rabbitmq
@@ -19,3 +32,10 @@ spec:
         image: rabbitmq:latest
         ports:
         - containerPort: 5672
+        volumeMounts:
+        - mountPath: "/var/lib/rabbitmq/mnesia/"
+          name: rabbitmq-disk
+      volumes:
+      - name: rabbitmq-disk
+        persistentVolumeClaim:
+          claimName: rabbitmq-claim

@@ -43,9 +43,9 @@ class Client:
 			outfile.write(response.content)
 			return None
 
-	def transcript(self, filepath):
+	def transcript(self, filepath, timeout=-1):
 		addr = "{}/transcript/{}".format(self.addr, filepath)
-		response = requests.get(addr)
+		response = requests.get(addr, data=json.dumps({"timeout": timeout}))
 		ret = json.loads(response.text)
 		if("error" in ret):
 			raise FileNotFoundError(ret["error"])
@@ -56,7 +56,7 @@ class Client:
 		response = requests.get(addr)
 		return json.loads(response.text)
 
-	def delete(self, endpoint):
+	def delete(self, endpoint=""):
 		addr = "{}/delete/{}".format(self.addr, endpoint)
 		response = requests.post(addr)
 		return json.loads(response.text)

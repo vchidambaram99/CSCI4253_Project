@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 8Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,3 +31,11 @@ spec:
         image: redis:latest
         ports:
         - containerPort: 6379
+        args: ["--appendonly", "yes", "--save", "900", "1", "--save", "30", "5"]
+        volumeMounts:
+        - mountPath: "/data"
+          name: redis-disk
+      volumes:
+      - name: redis-disk
+        persistentVolumeClaim:
+          claimName: redis-claim
